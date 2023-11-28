@@ -1,23 +1,27 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
-const fileUpload = require('express-fileupload');
+const path = require('path');
 const app = express();
 
-const ErrorHandler = require('./utils/ErrorHandler');
+const handleError = require('./middlewares/error.middleware');
+const Router = require('./routers');
 
 //Middleware
 app.use(express.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
-app.use(fileUpload({ useTempFiles: true }));
 
 //config
 if (process.env.NODE_ENV !== 'PRODUCTION') {
     require('dotenv').config();
 }
 
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+Router(app);
+
 //It's for ErrorHandling
-app.use(ErrorHandler);
+app.use(handleError);
 
 module.exports = app;
