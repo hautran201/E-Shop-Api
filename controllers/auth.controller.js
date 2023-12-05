@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const ErrorHandler = require('../utils/ErrorHandler');
 const sendMail = require('../utils/sendMail');
+const { generateToken, createActivationToken } = require('../utils/jwtToken');
 
 exports.register = async (req, res, next) => {
     try {
@@ -47,8 +48,6 @@ exports.register = async (req, res, next) => {
                 message: `Hello ${user.name}, please click on the link to activate your account: ${activationUrl}`,
             });
 
-            const newUser = await User.create(user);
-
             res.status(201).json({
                 success: true,
                 message: `please check your email:- ${user.email} to activate your account!`,
@@ -61,9 +60,46 @@ exports.register = async (req, res, next) => {
     }
 };
 
-//createActivationToken
-const createActivationToken = (user) => {
-    return jwt.sign(user, process.env.ACTIVATION_SECRET, {
-        expiresIn: '5m',
-    });
+exports.activateUser = async (req, res, next) => {
+    try {
+        const { activate_user } = req.body;
+
+        const newUser = jwt.verify(
+            activate_user,
+            process.env.ACTIVATION_SECRET,
+        );
+        console.log(newUser);
+
+        if (!newUser) {
+            return next(new ErrorHandler('Invalid token', 400));
+        }
+
+        const { name, email, password, avatar } = newUser;
+
+        let user = await User.findOne({ email });
+        console.log(user);
+        if (user) {
+            return next(new ErrorHandler('User already exits', 400));
+        }
+
+        user = await User.create({ name, email, password, avatar });
+
+        const token = generateToken(user._id);
+        console.log(token);
+
+        res.cookie('token', token, {
+            expires: new Date(Date.now() + 90 * 24 * 60 * 1000),
+            httpOnly: true,
+            sameSite: 'none',
+            secure: true,
+        });
+
+        res.status(201).json({
+            success: true,
+            user,
+            token,
+        });
+    } catch (err) {
+        return next(new ErrorHandler(err.message, 500));
+    }
 };
